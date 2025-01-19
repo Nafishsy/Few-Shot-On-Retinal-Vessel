@@ -20,8 +20,7 @@ STRIDE = PATCH_SIZE // 2
 STEP_SIZE = 50 * 4
 
 # Initialize Flask app
-app = Flask(__name__)
-
+app = Flask(__name__, template_folder='../templates') 
 # Custom metrics and loss functions
 @tf.keras.utils.register_keras_serializable()
 def jacard_similarity(y_true, y_pred, epsilon=1e-7):
@@ -123,7 +122,8 @@ def predict_image(image):
 # Route for home page
 @app.route('/')
 def index():
-    return render_template('../index.html')
+    return render_template('index.html')
+
 
 from werkzeug.utils import secure_filename
 
