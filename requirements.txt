@@ -1,8 +1,4 @@
-Flask
-tensorflow
-opencv-python-headless==4.6.0.66  # Headless to avoid GUI dependencies
-Pillow
-matplotlib
-patchify
-werkzeug==2.2.3
+flask==2.2.2
+tensorflow-cpu==2.11.0  # Replace with a lighter framework if possible
+numpy==1.23.5
 
