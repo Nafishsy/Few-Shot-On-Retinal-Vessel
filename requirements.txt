@@ -1,4 +1,4 @@
-flask==2.2.2
+flask
 tensorflow-cpu==2.11.0  # Replace with a lighter framework if possible
 numpy==1.23.5
 
