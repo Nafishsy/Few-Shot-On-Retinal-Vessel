@@ -75,7 +75,7 @@ def combined_loss(y_true, y_pred):
     return jacard_loss(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 # Load the model
-model_path = 'model/Model.keras'
+model_path = '../model/Model.keras'
 model = load_model(
     model_path,
     custom_objects={
@@ -204,5 +204,6 @@ def predict():
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True, threaded=False)
+    app.run(debug=True, threaded=False, host='0.0.0.0', port=5000)
+
 
