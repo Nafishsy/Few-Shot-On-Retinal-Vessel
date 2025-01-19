@@ -1,4 +1,4 @@
-Flask==2.2.3
+Flask
 tensorflow==2.11.0
 opencv-python-headless==4.6.0.66  # Headless to avoid GUI dependencies
 Pillow==9.1.1
