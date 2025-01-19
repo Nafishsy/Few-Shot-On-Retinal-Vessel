@@ -5,13 +5,5 @@
       "src": "api/index.py",
       "use": "@vercel/python"
     }
-  ],
-  "env": {
-    "FLASK_ENV": "production"
-  },
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.10"
-    }
-  }
+  ]
 }
