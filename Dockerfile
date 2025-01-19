@@ -1,35 +1,29 @@
-# Use the official Python image from Docker Hub
-FROM python:3.12-slim
+# Use the official Python image (change to a compatible version like 3.10)
+FROM python:3.10-slim
 
-# Set a working directory for your app
+# Install distutils
+RUN apt-get update && apt-get install -y python3-distutils
+
+# Set working directory
 WORKDIR /app
 
-# Install dependencies
-RUN pip install --upgrade pip
-
-# Copy the requirements.txt first to leverage Docker cache during builds
+# Install required dependencies
 COPY requirements.txt /app/
-
-# Install required Python packages from requirements.txt without cache
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Add a non-root user to run the app for better security
+# Add a non-root user
 RUN useradd -m myuser
-
-# Copy the rest of the application code to the container
-COPY . /app/
-
-# Set proper file ownership
-RUN chown -R myuser:myuser /app
-
-# Switch to the non-root user
 USER myuser
 
-# Expose port 5000 for the Flask application (default port for Flask)
+# Copy app code
+COPY . /app/
+
+# Expose port 5000
 EXPOSE 5000
 
-# Set Flask to run in production mode (optional, for security)
+# Set Flask to run in production mode
 ENV FLASK_ENV=production
 
-# Run the application using Python (now running the index.py in api folder)
+# Run the app using Python
 CMD ["python", "api/index.py"]
