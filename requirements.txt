@@ -5,4 +5,4 @@ opencv-python-headless==4.7.0.72
 matplotlib==3.7.1
 scikit-image==0.20.0
 patchify==0.2.3
-Werkzeug==2.2.3  # This is required for secure_filename
+Werkzuel==2.2.3
