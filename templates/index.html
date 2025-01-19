@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retinal Vessel Segmentation</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            background-color: #f9f9f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        h2, h3 {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        /* Navbar styles */
+        .navbar {
+            background-color: #2c3e50;
+            color: #fff;
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar span {
+            color: #3498db;
+        }
+
+        /* Form styling */
+        form {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        form input[type="file"] {
+            padding: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        form button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #3498db;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        form button:hover {
+            background-color: #2980b9;
+        }
+
+        /* Spinner styles */
+        #loading-spinner {
+            display: none;
+            margin: 20px auto;
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Footer styles */
+        footer {
+            background-color: #2c3e50;
+            color: #fff;
+            padding: 15px 20px;
+            font-size: 14px;
+            text-align: center;
+            margin-top: auto;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Result image styling */
+        #result-image {
+            display: none;
+            max-width: 100%;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="navbar">
+    Created by <span>Nafiz Ahmed</span> | <span>Retinal Vessel Segmentation</span>
+</div>
+
+<h2>Upload an Image for Segmentation</h2>
+
+<!-- Form for uploading image -->
+<form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" id="fileInput" name="file" accept="image/*" required>
+    <button type="submit">Upload</button>
+</form>
+
+<h3>Result:</h3>
+
+<!-- Placeholder for displaying result -->
+<div id="result">
+    <p id="error-message" style="color: red; display: none;"></p>
+    <img id="result-image" src="" alt="Predicted Segmentation">
+</div>
+
+<!-- Loading spinner -->
+<div id="loading-spinner"></div>
+
+<script>
+    // Handle form submission for file upload
+    const form = document.getElementById("uploadForm");
+    const loadingSpinner = document.getElementById("loading-spinner");
+    const errorMessage = document.getElementById("error-message");
+    const resultImage = document.getElementById("result-image");
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const fileInput = document.getElementById("fileInput");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("Please select an image file.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        // Show the loading spinner
+        loadingSpinner.style.display = "block";
+
+        // Hide previous result and error message
+        errorMessage.style.display = "none";
+        resultImage.style.display = "none";
+
+        try {
+            // Make POST request to the Flask backend
+            const response = await fetch("/predict", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await response.json();
+
+            // Hide the loading spinner
+            loadingSpinner.style.display = "none";
+
+            if (data.error) {
+                errorMessage.textContent = data.error;
+                errorMessage.style.display = "block";
+            } else {
+                // Display the result image returned by the backend
+                resultImage.src = data.result_image; // Set the source of the image
+                resultImage.style.display = "block"; // Make the image visible
+            }
+        } catch (error) {
+            // Hide the loading spinner and display the error
+            loadingSpinner.style.display = "none";
+            console.error("Error:", error);
+            alert("An error occurred while processing your request.");
+        }
+    });
+</script>
+
+<!-- Footer Section -->
+<footer>
+    <p>
+        Created by <strong>Nafiz Ahmed</strong> | 
+        <a href="https://github.com/Nafishsy" target="_blank">GitHub</a> | 
+        <a href="https://nafishsy.github.io/" target="_blank">Website</a>
+    </p>
+</footer>
+
+</body>
+</html>
