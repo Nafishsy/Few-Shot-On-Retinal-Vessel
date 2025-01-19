@@ -123,7 +123,7 @@ def predict_image(image):
 # Route for home page
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('../index.html')
 
 from werkzeug.utils import secure_filename
 
