@@ -1,132 +1,105 @@
 from flask import Flask, render_template, request, jsonify
-from werkzeug.utils import secure_filename
 import numpy as np
 import cv2
-from PIL import Image  # Importing PIL for handling TIFF files
+from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-import os
+import matplotlib
+matplotlib.use('Agg')  # Use a non-interactive backend
 import matplotlib.pyplot as plt
+
 from patchify import patchify, unpatchify
+import io
+import base64
 
 # Global variables
-PATCH_SIZE = 2048 // 2  # Updated PATCH_SIZE
+PATCH_SIZE = 2048 // 2
 BATCH_SIZE = 16
 EPOCHS = 75
 STRIDE = PATCH_SIZE // 2
 STEP_SIZE = 50 * 4
 
-# Initialize Flask app with static folder for uploads
-app = Flask(__name__, static_url_path='/uploads', static_folder='uploads')
-
-# Set the path for the upload folder and allowed extensions
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}  # Added 'tif' and 'tiff'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Ensure 'uploads' folder exists
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# Initialize Flask app
+app = Flask(__name__)
 
 # Custom metrics and loss functions
-from tensorflow.keras import backend as K
-
 @tf.keras.utils.register_keras_serializable()
 def jacard_similarity(y_true, y_pred, epsilon=1e-7):
-    y_true_f = K.flatten(K.cast(y_true, 'float32'))
-    y_pred_f = K.flatten(K.cast(y_pred, 'float32'))
-    intersection = K.sum(y_true_f * y_pred_f)
-    union = K.sum(y_true_f + y_pred_f) - intersection
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    union = tf.keras.backend.sum(y_true_f + y_pred_f) - intersection
     return (intersection + epsilon) / (union + epsilon)
 
 @tf.keras.utils.register_keras_serializable()
-def jaccard_loss(y_true, y_pred):
+def jacard_loss(y_true, y_pred):
     return 1 - jacard_similarity(y_true, y_pred)
 
 @tf.keras.utils.register_keras_serializable()
-def dice_coef(y_true, y_pred):
-    y_true_f = K.flatten(K.cast(y_true, 'float32'))
-    y_pred_f = K.flatten(K.cast(y_pred, 'float32'))
-    intersection = K.sum(y_true_f * y_pred_f)
-    return (2. * intersection + K.epsilon()) / (
-            K.sum(y_true_f) + K.sum(y_pred_f) + K.epsilon())
+def dice_coefficient(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    return (2.0 * intersection + epsilon) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + epsilon)
 
 @tf.keras.utils.register_keras_serializable()
-def generalized_dice_coefficient(y_true, y_pred):
-    smooth = 1.
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
-    intersection = K.sum(y_true_f * y_pred_f)
-    score = (2. * intersection + smooth) / (
-            K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
-    return score
+def dice_loss(y_true, y_pred):
+    return 1 - dice_coefficient(y_true, y_pred)
 
 @tf.keras.utils.register_keras_serializable()
-def dice_coef_loss(y_true, y_pred):
-    return 1 - generalized_dice_coefficient(y_true, y_pred)
+def generalized_dice_coefficient(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    weights = 1 / (tf.keras.backend.sum(y_true_f) ** 2 + epsilon)
+    return (2.0 * intersection * weights + epsilon) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) * weights + epsilon)
 
 @tf.keras.utils.register_keras_serializable()
-def accuracy(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.round(K.flatten(y_pred))
-    correct = K.equal(y_true_f, y_pred_f)
-    return K.mean(K.cast(correct, dtype='float32'))
+def precision(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    true_positives = tf.keras.backend.sum(y_true_f * y_pred_f)
+    predicted_positives = tf.keras.backend.sum(y_pred_f)
+    return (true_positives + epsilon) / (predicted_positives + epsilon)
 
 @tf.keras.utils.register_keras_serializable()
-def precision(y_true, y_pred):
-    y_true_f = K.cast(K.flatten(y_true), dtype='float32')
-    y_pred_f = K.round(K.cast(K.flatten(y_pred), dtype='float32'))
-    true_positives = K.sum(y_true_f * y_pred_f)
-    predicted_positives = K.sum(y_pred_f)
-    return (true_positives + 1.0) / (predicted_positives + 1.0)
-
-@tf.keras.utils.register_keras_serializable()
-def recall(y_true, y_pred):
-    y_true_f = K.cast(K.flatten(y_true), dtype='float32')
-    y_pred_f = K.round(K.cast(K.flatten(y_pred), dtype='float32'))
-    true_positives = K.sum(y_true_f * y_pred_f)
-    possible_positives = K.sum(y_true_f)
-    return (true_positives + 1.0) / (possible_positives + 1.0)
+def recall(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    true_positives = tf.keras.backend.sum(y_true_f * y_pred_f)
+    possible_positives = tf.keras.backend.sum(y_true_f)
+    return (true_positives + epsilon) / (possible_positives + epsilon)
 
 @tf.keras.utils.register_keras_serializable()
 def combined_loss(y_true, y_pred):
-    loss1 = tf.keras.losses.BinaryCrossentropy()(y_true, y_pred)
-    loss2 = 1 - tf.reduce_mean(tf.image.ssim(y_true, y_pred, max_val=1.0))
-    return loss1 + loss2
-
+    return jacard_loss(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 # Load the model
-model_path = 'model/Model.keras'  # Change to your actual .keras model file path
+model_path = 'model/Model.keras'
 model = load_model(
     model_path,
     custom_objects={
-        "combined_loss": combined_loss,
         "jacard_similarity": jacard_similarity,
-        "jaccard_loss": jaccard_loss,
-        "dice_coef": dice_coef,
+        "jacard_loss": jacard_loss,
+        "dice_coef": dice_coefficient,
+        "dice_loss": dice_loss,
         "generalized_dice_coefficient": generalized_dice_coefficient,
-        "dice_coef_loss": dice_coef_loss,
-        "accuracy": accuracy,
         "precision": precision,
         "recall": recall,
+        "combined_loss": combined_loss,
     },
 )
-
-# Check if file extension is allowed
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Define CLAHE object
 clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
 
-# Define the image preprocessing function with CLAHE on the green channel
+# Preprocess the image
 def preprocess_image(image):
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    green_channel = image[:, :, 1]
+    green_channel = image[:, :, 1]  # Extract green channel
     green_channel = clahe.apply(green_channel)
     return green_channel
 
-# Define a function to predict using the model
+# Predict image
 def predict_image(image):
     image_resized = cv2.resize(image, (2048, 2048))
     test_img = preprocess_image(image_resized)
@@ -147,10 +120,26 @@ def predict_image(image):
     reconstructed_image = unpatchify(predicted_patches_reshaped, test_img.shape)
     return reconstructed_image
 
-# Home route to render the HTML page
+# Route for home page
 @app.route('/')
 def index():
     return render_template('index.html')
+
+from werkzeug.utils import secure_filename
+
+# Allowed extensions
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
+
+# Function to check allowed extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Allowed extensions
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
+
+# Function to check allowed extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -161,47 +150,59 @@ def predict():
         return jsonify({"error": "No selected file"})
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        # Save the original image as is, without any modification
-        original_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'original_saved.png')
+        
+        # Load the uploaded image into memory without saving to disk
+        uploaded_image = None
         if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
-            image = np.array(Image.open(filepath))  # Open .tif using PIL
-            Image.fromarray(image).save(original_image_path)  # Save as is for TIFF
+            uploaded_image = np.array(Image.open(file))  # Open .tif using PIL
         else:  # For other image types like jpg/jpeg/png
-            image = cv2.imread(filepath)  # Open with OpenCV (BGR)
-            cv2.imwrite(original_image_path, cv2.cvtColor(image, cv2.COLOR_BGR2RGB))  # Save in RGB format
+            image_stream = np.asarray(bytearray(file.read()), dtype=np.uint8)
+            uploaded_image = cv2.imdecode(image_stream, cv2.IMREAD_COLOR)  # Decode image
 
-        # Predict the segmentation mask using a copy of the image
-        prediction = predict_image(image)
+        # Store a copy of the uploaded image without any modifications
+        original_image = uploaded_image.copy()
 
-        result_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'result.png')
+        # Predict the segmentation mask using the in-memory image
+        prediction = predict_image(uploaded_image)
+
+        # Render the images in the response
         plt.figure(figsize=(10, 5))
 
-        # Display the original image using the saved version
-        original_saved_image = cv2.imread(original_image_path)
+        # Display the original image (uploaded image without modification)
         plt.subplot(1, 2, 1)
-        plt.imshow(original_saved_image)  # Render the saved image in RGB
+        if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
+            plt.imshow(original_image)  # Show grayscale images for .tif or .tiff
+        else:  # For RGB/BGR images
+            plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB for correct display
         plt.title("Original Image")
         plt.axis('off')
 
+        # Display the prediction
         plt.subplot(1, 2, 2)
-        plt.imshow(prediction, cmap='gray')
+        plt.imshow(prediction, cmap='gray')  # Display segmentation mask with gray colormap
         plt.title("Predicted Segmentation")
         plt.axis('off')
 
-        plt.savefig(result_image_path)
+        # Convert plot to a bytes-like object
+        from io import BytesIO
+        img_bytes = BytesIO()
+        plt.savefig(img_bytes, format='png')
         plt.close()
+        img_bytes.seek(0)
 
-        # Prepare the result image URLs
-        original_image_url = f'/uploads/original_saved.png'
-        result_image_url = f'/uploads/result.png'
-
-        return jsonify({"original_image": original_image_url, "result_image": result_image_url})
+        # Prepare the image as a response
+        response = {
+            "original_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
+            "result_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
+        }
+        return jsonify(response)
 
     return jsonify({"error": "Invalid file type"})
 
+
+
+
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=False)
+
