@@ -1,7 +1,8 @@
-Flask
-tensorflow
-matplotlib
-pillow
-opencv-python
-patchify
-werkzeug
+Flask==2.2.3
+tensorflow==2.11.0
+opencv-python-headless==4.6.0.66  # Headless to avoid GUI dependencies
+Pillow==9.1.1
+matplotlib==3.6.0
+patchify==0.2.1
+werkzeug==2.2.3
+flask-cors==3.1.1  # Optional, for handling CORS in case of cross-origin requests
