@@ -22,8 +22,49 @@ STEP_SIZE = 50 * 4
 # Initialize Flask app
 app = Flask(__name__, template_folder='../templates')
 
-# Custom metrics and loss functions (unchanged)
-# (same as before)
+@tf.keras.utils.register_keras_serializable()
+def jacard_similarity(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    union = tf.keras.backend.sum(y_true_f + y_pred_f) - intersection
+    return (intersection + epsilon) / (union + epsilon)
+@tf.keras.utils.register_keras_serializable()
+def jacard_loss(y_true, y_pred):
+    return 1 - jacard_similarity(y_true, y_pred)
+@tf.keras.utils.register_keras_serializable()
+def dice_coefficient(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    return (2.0 * intersection + epsilon) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) + epsilon)
+@tf.keras.utils.register_keras_serializable()
+def dice_loss(y_true, y_pred):
+    return 1 - dice_coefficient(y_true, y_pred)
+@tf.keras.utils.register_keras_serializable()
+def generalized_dice_coefficient(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    intersection = tf.keras.backend.sum(y_true_f * y_pred_f)
+    weights = 1 / (tf.keras.backend.sum(y_true_f) ** 2 + epsilon)
+    return (2.0 * intersection * weights + epsilon) / (tf.keras.backend.sum(y_true_f) + tf.keras.backend.sum(y_pred_f) * weights + epsilon)
+@tf.keras.utils.register_keras_serializable()
+def precision(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    true_positives = tf.keras.backend.sum(y_true_f * y_pred_f)
+    predicted_positives = tf.keras.backend.sum(y_pred_f)
+    return (true_positives + epsilon) / (predicted_positives + epsilon)
+@tf.keras.utils.register_keras_serializable()
+def recall(y_true, y_pred, epsilon=1e-7):
+    y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
+    y_pred_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_pred, 'float32'))
+    true_positives = tf.keras.backend.sum(y_true_f * y_pred_f)
+    possible_positives = tf.keras.backend.sum(y_true_f)
+    return (true_positives + epsilon) / (possible_positives + epsilon)
+@tf.keras.utils.register_keras_serializable()
+def combined_loss(y_true, y_pred):
+    return jacard_loss(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 # Load the model
 model_path = 'model/Model.keras'
