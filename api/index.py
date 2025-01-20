@@ -11,7 +11,7 @@ import os
 from patchify import patchify, unpatchify
 import base64
 from io import BytesIO
-
+from flask_cors import CORS
 # Global variables
 PATCH_SIZE = 1024  # Reduced patch size for memory efficiency
 BATCH_SIZE = 16
@@ -20,6 +20,7 @@ STRIDE = PATCH_SIZE // 2
 STEP_SIZE = 50 * 4
 
 # Initialize Flask app
+CORS(app)
 app = Flask(__name__, template_folder='../templates')
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # Increase the max content size (e.g., 64 MB)
 
