@@ -14,10 +14,12 @@ from io import BytesIO
 from flask_cors import CORS
 # Global variables
 PATCH_SIZE = 1024  # Reduced patch size for memory efficiency
-BATCH_SIZE = 16
-EPOCHS = 75
 STRIDE = PATCH_SIZE // 2
-STEP_SIZE = 50 * 4
+
+import tensorflow as tf
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+if physical_devices:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 # Initialize Flask app
 app = Flask(__name__, template_folder='../templates')
