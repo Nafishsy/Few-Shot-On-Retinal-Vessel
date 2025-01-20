@@ -156,8 +156,8 @@ def predict():
             # Predict the segmentation mask using the in-memory image
             prediction = predict_image(uploaded_image)
 
-            if prediction is None:
-                return jsonify({"error": "Prediction failed"})
+            if prediction is None or prediction.size == 0:
+                return jsonify({"error": "Prediction failed: Empty or invalid output."})
 
             # Render the images in the response
             img_bytes = BytesIO()
@@ -196,7 +196,7 @@ def predict():
 
     except Exception as e:
         print(f"Error in prediction route: {e}")
-        return jsonify({"error": "An error occurred while processing the image"})
+        return jsonify({"error": str(e)})
 
 # Run the app
 if __name__ == '__main__':
