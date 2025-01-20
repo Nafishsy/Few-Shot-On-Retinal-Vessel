@@ -7,6 +7,7 @@ from tensorflow.keras.models import load_model
 import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend
 import matplotlib.pyplot as plt
+import os
 
 from patchify import patchify, unpatchify
 import io
@@ -187,5 +188,6 @@ def render_images(original_image, prediction):
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    port = int(os.environ.get("PORT", 5000))  # Get the port from the environment variable
+    app.run(debug=True, host='0.0.0.0', port=port, threaded=True)
 
