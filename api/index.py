@@ -12,10 +12,8 @@ from patchify import patchify, unpatchify
 import base64
 from io import BytesIO
 
-
-# os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU usage
 # Global variables
-PATCH_SIZE = 2048 // 2
+PATCH_SIZE = 1024  # Reduced patch size for memory efficiency
 BATCH_SIZE = 16
 EPOCHS = 75
 STRIDE = PATCH_SIZE // 2
@@ -25,6 +23,7 @@ STEP_SIZE = 50 * 4
 app = Flask(__name__, template_folder='../templates')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Set the max upload size to 16MB
 
+# Custom loss and metric functions (same as before)
 @tf.keras.utils.register_keras_serializable()
 def jacard_similarity(y_true, y_pred, epsilon=1e-7):
     y_true_f = tf.keras.backend.flatten(tf.keras.backend.cast(y_true, 'float32'))
@@ -68,7 +67,6 @@ def recall(y_true, y_pred, epsilon=1e-7):
 @tf.keras.utils.register_keras_serializable()
 def combined_loss(y_true, y_pred):
     return jacard_loss(y_true, y_pred) + dice_loss(y_true, y_pred)
-
 # Load the model
 model_path = 'model/Model.keras'
 model = load_model(
@@ -84,17 +82,15 @@ model = load_model(
         "combined_loss": combined_loss,
     },
 )
-
 # Define CLAHE object
 clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-
 # Preprocess the image
 def preprocess_image(image):
     green_channel = image[:, :, 1]  # Extract green channel
     green_channel = clahe.apply(green_channel)
     return green_channel
 
-# Predict image
+# Efficient function to handle image prediction in patches
 def predict_image(image):
     image_resized = cv2.resize(image, (2048, 2048))  # Resize image
     test_img = preprocess_image(image_resized)
@@ -105,9 +101,11 @@ def predict_image(image):
     for i in range(patches.shape[0]):
         for j in range(patches.shape[1]):
             single_patch = patches[i, j, :, :]
+
+            # Normalize the patch
             single_patch_norm = (single_patch.astype('float32')) / 255.0
             single_patch_input = np.expand_dims(np.expand_dims(single_patch_norm, axis=-1), 0)
-            
+
             # Predict and place directly into reconstructed image
             single_patch_prediction = (model.predict(single_patch_input, verbose=0)[0, :, :, 0] > 0.5).astype(np.uint8)
             reconstructed_image[i * STRIDE:i * STRIDE + PATCH_SIZE,
@@ -138,7 +136,7 @@ def predict():
         return jsonify({"error": "No selected file"})
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        
+
         # Load the uploaded image into memory without saving to disk
         uploaded_image = None
         if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
@@ -154,12 +152,15 @@ def predict():
         prediction = predict_image(uploaded_image)
 
         # Render the images in the response
+        img_bytes = BytesIO()
+
+        # Plot the original and predicted segmentation together directly to BytesIO
         plt.figure(figsize=(10, 5))
 
-        # Display the original image (uploaded image without modification)
+        # Display the original image
         plt.subplot(1, 2, 1)
         if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
-            plt.imshow(original_image)  # Show grayscale images for .tif or .tiff
+            plt.imshow(original_image, cmap='gray')  # Show grayscale images for .tif or .tiff
         else:  # For RGB/BGR images
             plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB for correct display
         plt.title("Original Image")
@@ -171,9 +172,7 @@ def predict():
         plt.title("Predicted Segmentation")
         plt.axis('off')
 
-        # Convert plot to a bytes-like object
-        from io import BytesIO
-        img_bytes = BytesIO()
+        # Save the plot to the bytes buffer
         plt.savefig(img_bytes, format='png')
         plt.close()
         img_bytes.seek(0)
@@ -191,4 +190,3 @@ def predict():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))  # Ensure correct port
     app.run(host='0.0.0.0', port=port)
-
