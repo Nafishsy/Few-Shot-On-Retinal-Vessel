@@ -127,66 +127,81 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tif', 'tiff'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Function to check allowed extensions
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"})
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"})
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"})
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "No selected file"})
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
 
-        # Load the uploaded image into memory without saving to disk
-        uploaded_image = None
-        if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
-            uploaded_image = np.array(Image.open(file))  # Open .tif using PIL
-        else:  # For other image types like jpg/jpeg/png
-            image_stream = np.asarray(bytearray(file.read()), dtype=np.uint8)
-            uploaded_image = cv2.imdecode(image_stream, cv2.IMREAD_COLOR)  # Decode image
+            # Load the uploaded image into memory without saving to disk
+            uploaded_image = None
+            if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
+                uploaded_image = np.array(Image.open(file))  # Open .tif using PIL
+            else:  # For other image types like jpg/jpeg/png
+                image_stream = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                uploaded_image = cv2.imdecode(image_stream, cv2.IMREAD_COLOR)  # Decode image
 
-        # Store a copy of the uploaded image without any modifications
-        original_image = uploaded_image.copy()
+            # Store a copy of the uploaded image without any modifications
+            original_image = uploaded_image.copy()
 
-        # Predict the segmentation mask using the in-memory image
-        prediction = predict_image(uploaded_image)
+            # Predict the segmentation mask using the in-memory image
+            prediction = predict_image(uploaded_image)
 
-        # Render the images in the response
-        img_bytes = BytesIO()
+            if prediction is None:
+                return jsonify({"error": "Prediction failed"})
 
-        # Plot the original and predicted segmentation together directly to BytesIO
-        plt.figure(figsize=(10, 5))
+            # Render the images in the response
+            img_bytes = BytesIO()
 
-        # Display the original image
-        plt.subplot(1, 2, 1)
-        if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
-            plt.imshow(original_image, cmap='gray')  # Show grayscale images for .tif or .tiff
-        else:  # For RGB/BGR images
-            plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB for correct display
-        plt.title("Original Image")
-        plt.axis('off')
+            # Plot the original and predicted segmentation together directly to BytesIO
+            plt.figure(figsize=(10, 5))
 
-        # Display the prediction
-        plt.subplot(1, 2, 2)
-        plt.imshow(prediction, cmap='gray')  # Display segmentation mask with gray colormap
-        plt.title("Predicted Segmentation")
-        plt.axis('off')
+            # Display the original image
+            plt.subplot(1, 2, 1)
+            if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
+                plt.imshow(original_image, cmap='gray')  # Show grayscale images for .tif or .tiff
+            else:  # For RGB/BGR images
+                plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB for correct display
+            plt.title("Original Image")
+            plt.axis('off')
 
-        # Save the plot to the bytes buffer
-        plt.savefig(img_bytes, format='png')
-        plt.close()
-        img_bytes.seek(0)
+            # Display the prediction
+            plt.subplot(1, 2, 2)
+            plt.imshow(prediction, cmap='gray')  # Display segmentation mask with gray colormap
+            plt.title("Predicted Segmentation")
+            plt.axis('off')
 
-        # Prepare the image as a response
-        response = {
-            "original_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
-            "result_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
-        }
-        return jsonify(response)
+            # Save the plot to the bytes buffer
+            plt.savefig(img_bytes, format='png')
+            plt.close()
+            img_bytes.seek(0)
 
-    return jsonify({"error": "Invalid file type"})
+            # Prepare the image as a response
+            response = {
+                "original_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
+                "result_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
+            }
+            return jsonify(response)
+        else:
+            return jsonify({"error": "Invalid file type"})
+
+    except Exception as e:
+        print(f"Error in prediction route: {e}")
+        return jsonify({"error": "An error occurred while processing the image"})
 
 # Run the app
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))  # Ensure correct port
-    app.run(host='0.0.0.0', port=port)
+    try:
+        port = int(os.environ.get("PORT", 10000))  # Ensure correct port
+        app.run(host='0.0.0.0', port=port)
+    except Exception as e:
+        print(f"Error starting the server: {e}")
