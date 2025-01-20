@@ -21,7 +21,8 @@ STEP_SIZE = 50 * 4
 
 # Initialize Flask app
 app = Flask(__name__, template_folder='../templates')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Set the max upload size to 16MB
+app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # Increase the max content size (e.g., 64 MB)
+
 
 # Custom loss and metric functions (same as before)
 @tf.keras.utils.register_keras_serializable()
