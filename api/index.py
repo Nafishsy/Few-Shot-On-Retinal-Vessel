@@ -8,10 +8,9 @@ import matplotlib
 matplotlib.use('Agg')  # Use a non-interactive backend
 import matplotlib.pyplot as plt
 import os
-
 from patchify import patchify, unpatchify
-import io
 import base64
+from io import BytesIO
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU usage
@@ -24,6 +23,7 @@ STEP_SIZE = 50 * 4
 
 # Initialize Flask app
 app = Flask(__name__, template_folder='../templates')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Set the max upload size to 16MB
 
 @tf.keras.utils.register_keras_serializable()
 def jacard_similarity(y_true, y_pred, epsilon=1e-7):
@@ -147,10 +147,6 @@ def predict():
             image_stream = np.asarray(bytearray(file.read()), dtype=np.uint8)
             uploaded_image = cv2.imdecode(image_stream, cv2.IMREAD_COLOR)  # Decode image
 
-        # Resize image if it is too large
-        if uploaded_image.shape[0] > 2048 or uploaded_image.shape[1] > 2048:
-            uploaded_image = cv2.resize(uploaded_image, (2048, 2048))
-
         # Store a copy of the uploaded image without any modifications
         original_image = uploaded_image.copy()
 
@@ -158,35 +154,38 @@ def predict():
         prediction = predict_image(uploaded_image)
 
         # Render the images in the response
+        plt.figure(figsize=(10, 5))
+
+        # Display the original image (uploaded image without modification)
+        plt.subplot(1, 2, 1)
+        if filename.lower().endswith(('.tif', '.tiff')):  # For TIFF files
+            plt.imshow(original_image)  # Show grayscale images for .tif or .tiff
+        else:  # For RGB/BGR images
+            plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))  # Convert BGR to RGB for correct display
+        plt.title("Original Image")
+        plt.axis('off')
+
+        # Display the prediction
+        plt.subplot(1, 2, 2)
+        plt.imshow(prediction, cmap='gray')  # Display segmentation mask with gray colormap
+        plt.title("Predicted Segmentation")
+        plt.axis('off')
+
+        # Convert plot to a bytes-like object
+        from io import BytesIO
+        img_bytes = BytesIO()
+        plt.savefig(img_bytes, format='png')
+        plt.close()
+        img_bytes.seek(0)
+
+        # Prepare the image as a response
         response = {
-            "original_image": render_images(original_image, prediction),
-            "result_image": render_images(original_image, prediction),
+            "original_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
+            "result_image": "data:image/png;base64," + base64.b64encode(img_bytes.getvalue()).decode(),
         }
         return jsonify(response)
 
     return jsonify({"error": "Invalid file type"})
-
-# Render images as base64-encoded strings
-def render_images(original_image, prediction):
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-    # Original image
-    axes[0].imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))
-    axes[0].set_title("Original Image")
-    axes[0].axis('off')
-
-    # Predicted segmentation
-    axes[1].imshow(prediction, cmap='gray')
-    axes[1].set_title("Predicted Segmentation")
-    axes[1].axis('off')
-
-    # Convert plot to bytes
-    img_bytes = BytesIO()
-    plt.savefig(img_bytes, format='png')
-    plt.close(fig)  # Close figure to free memory
-    img_bytes.seek(0)
-
-    return base64.b64encode(img_bytes.getvalue()).decode()
 
 # Run the app
 if __name__ == '__main__':
