@@ -20,8 +20,8 @@ STRIDE = PATCH_SIZE // 2
 STEP_SIZE = 50 * 4
 
 # Initialize Flask app
-CORS(app)
 app = Flask(__name__, template_folder='../templates')
+CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024  # Increase the max content size (e.g., 64 MB)
 
 
