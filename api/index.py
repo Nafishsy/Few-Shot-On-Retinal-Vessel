@@ -13,6 +13,8 @@ from patchify import patchify, unpatchify
 import io
 import base64
 
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Disable GPU usage
 # Global variables
 PATCH_SIZE = 2048 // 2
 BATCH_SIZE = 16
@@ -188,6 +190,6 @@ def render_images(original_image, prediction):
 
 # Run the app
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))  # Get the port from the environment variable
-    app.run(debug=True, host='0.0.0.0', port=port, threaded=True)
+    port = int(os.environ.get("PORT", 10000))  # Ensure correct port
+    app.run(host='0.0.0.0', port=port)
 
