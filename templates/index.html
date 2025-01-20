@@ -150,51 +150,51 @@
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-
+    
         const fileInput = document.getElementById("fileInput");
         const file = fileInput.files[0];
-
+    
         if (!file) {
             alert("Please select an image file.");
             return;
         }
-
+    
         const formData = new FormData();
         formData.append("file", file);
-
-        // Show the loading spinner
+    
         loadingSpinner.style.display = "block";
-
-        // Hide previous result and error message
         errorMessage.style.display = "none";
         resultImage.style.display = "none";
-
+    
         try {
-            // Make POST request to the Flask backend
             const response = await fetch("/predict", {
                 method: "POST",
                 body: formData,
             });
-            const data = await response.json();
-
-            // Hide the loading spinner
+    
             loadingSpinner.style.display = "none";
-
+    
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+    
+            const data = await response.json();
+    
             if (data.error) {
                 errorMessage.textContent = data.error;
                 errorMessage.style.display = "block";
             } else {
-                // Display the result image returned by the backend
-                resultImage.src = data.result_image; // Set the source of the image
-                resultImage.style.display = "block"; // Make the image visible
+                resultImage.src = data.result_image;
+                resultImage.style.display = "block";
             }
         } catch (error) {
-            // Hide the loading spinner and display the error
             loadingSpinner.style.display = "none";
             console.error("Error:", error);
-            alert("An error occurred while processing your request.");
+            errorMessage.textContent = "An error occurred while processing your request.";
+            errorMessage.style.display = "block";
         }
     });
+    
 </script>
 
 <!-- Footer Section -->
