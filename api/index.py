@@ -22,8 +22,7 @@ STRIDE = PATCH_SIZE // 2
 STEP_SIZE = 50 * 4
 
 # Initialize Flask app
-app = Flask(__name__)  # Flask will automatically look for the 'templates' folder in the root directory.
-
+app = Flask(__name__, template_folder='../templates')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # Set the max upload size to 16MB
 
 @tf.keras.utils.register_keras_serializable()
@@ -71,8 +70,7 @@ def combined_loss(y_true, y_pred):
     return jacard_loss(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 # Load the model
-model_path = os.path.join(os.path.dirname(__file__), 'model', 'Model.keras')
-
+model_path = 'model/Model.keras'
 model = load_model(
     model_path,
     custom_objects={  # Same custom objects
